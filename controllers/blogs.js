@@ -1,6 +1,15 @@
 const blogsRouter = require('express').Router();
 const Blog = require('../models/blog');
 const User = require('../models/user');
+const jwt = require('jsonwebtoken');
+
+const getTokenFrom = (request) => {
+  const authorization = request.get('authorization');
+  if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+    return authorization.substring(7);
+  }
+  return null;
+};
 
 blogsRouter.get('/', async (request, response) => {
   const blogs = await Blog.find({}).populate('user', {
@@ -12,6 +21,13 @@ blogsRouter.get('/', async (request, response) => {
 });
 
 blogsRouter.post('/', async (request, response) => {
+  const decodedToken = jwt.verify(request.token, process.env.SECRET);
+
+  if (!request.token || !decodedToken.id) {
+    return response.status(401).json({ error: 'token missing or invalid' });
+  }
+  const user = await User.findById(decodedToken.id);
+
   if (!request.body.title && !request.body.url) {
     response.status(400).end();
   }
@@ -20,7 +36,7 @@ blogsRouter.post('/', async (request, response) => {
   const blog = new Blog({
     ...request.body,
     likes: request.body.likes ? request.body.likes : 0,
-    user: users[0] ? users[0].id : '',
+    user: users.id,
   });
   const result = await blog.save();
 
@@ -30,6 +46,23 @@ blogsRouter.post('/', async (request, response) => {
 });
 
 blogsRouter.delete('/:id', async (request, response) => {
+  const decodedToken = jwt.verify(request.token, process.env.SECRET);
+
+  if (!request.token || !decodedToken.id) {
+    return response.status(401).json({ error: 'token missing or invalid' });
+  }
+
+  const user = await User.findById(decodedToken.id);
+  const blog = await Blog.findById(request.params.id).populate('user', {
+    id: 1,
+  });
+
+  if (!user || !blog || blog.user.id !== user.id) {
+    return response
+      .status(403)
+      .json({ error: `You don't have permissions to delete this resource` });
+  }
+
   await Blog.findByIdAndRemove(request.params.id);
   response.status(204).end();
 });

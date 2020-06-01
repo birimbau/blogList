@@ -45,7 +45,7 @@ test('there is an id property', async () => {
   expect(response.body[0].id).toBeDefined();
 });
 
-test('the blog is created successfuly', async () => {
+test('the blog is not created if user is not logged in', async () => {
   const newBlog = {
     title: 'test new blog',
     author: 'test new author',
@@ -55,6 +55,31 @@ test('the blog is created successfuly', async () => {
 
   await api
     .post('/api/blogs')
+    .send(newBlog)
+    .expect(401)
+    .expect('Content-Type', /application\/json/);
+});
+
+test('the blog is created successfuly', async () => {
+  const newBlog = {
+    title: 'test new blog',
+    author: 'test new author',
+    url: 'www.url-new.com',
+    likes: 33,
+  };
+
+  const logResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'root',
+      password: 'sekret',
+    })
+    .expect(200)
+    .expect('Content-Type', /application\/json/);
+
+  await api
+    .post('/api/blogs')
+    .set('Authorization', `bearer ${logResponse.body.token}`)
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/);
@@ -65,6 +90,15 @@ test('the blog is created successfuly', async () => {
 });
 
 test('if blog is created without like property its defaulted to 0', async () => {
+  const logResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'root',
+      password: 'sekret',
+    })
+    .expect(200)
+    .expect('Content-Type', /application\/json/);
+
   const newBlog = {
     title: 'test new blog',
     author: 'test new author',
@@ -73,6 +107,7 @@ test('if blog is created without like property its defaulted to 0', async () => 
 
   await api
     .post('/api/blogs')
+    .set('Authorization', `bearer ${logResponse.body.token}`)
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/);
@@ -83,17 +118,52 @@ test('if blog is created without like property its defaulted to 0', async () => 
 });
 
 test('if title and url are missing the response is a Bad Request', async () => {
+  const logResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'root',
+      password: 'sekret',
+    })
+    .expect(200)
+    .expect('Content-Type', /application\/json/);
+
   const newBlog = {
     author: 'Bad Request',
     likes: 33,
   };
 
-  await api.post('/api/blogs').send(newBlog).expect(400);
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .expect(400);
 });
 
 test('a blog is deleted successfully', async () => {
+  const logResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'root',
+      password: 'sekret',
+    })
+    .expect(200)
+    .expect('Content-Type', /application\/json/);
+  await api
+    .post('/api/blogs')
+    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .send({
+      title: 'test new blog',
+      author: 'test new author',
+      url: 'www.url-new.com',
+      likes: 33,
+    })
+    .expect(201)
+    .expect('Content-Type', /application\/json/);
   const response = await api.get('/api/blogs');
-  await api.delete(`/api/blogs/${response.body[0].id}`).expect(204);
+  await api
+    .delete(`/api/blogs/${response.body[1].id}`)
+    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .expect(204);
   const responseUpdated = await api.get('/api/blogs');
   expect(responseUpdated.body.length).toBe(response.body.length - 1);
 });
