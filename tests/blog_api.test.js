@@ -4,6 +4,8 @@ const app = require('../app');
 const api = supertest(app);
 const Blog = require('../models/blog');
 
+let token = null;
+
 const initialBlog = [
   {
     title: 'test',
@@ -12,6 +14,19 @@ const initialBlog = [
     likes: 3,
   },
 ];
+
+beforeAll(async () => {
+  const logResponse = await api
+    .post('/api/login')
+    .send({
+      username: 'root',
+      password: 'sekret',
+    })
+    .expect(200)
+    .expect('Content-Type', /application\/json/);
+
+  token = logResponse.body.token;
+});
 
 beforeEach(async () => {
   await Blog.deleteMany({});
@@ -68,18 +83,9 @@ test('the blog is created successfuly', async () => {
     likes: 33,
   };
 
-  const logResponse = await api
-    .post('/api/login')
-    .send({
-      username: 'root',
-      password: 'sekret',
-    })
-    .expect(200)
-    .expect('Content-Type', /application\/json/);
-
   await api
     .post('/api/blogs')
-    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .set('Authorization', `bearer ${token}`)
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/);
@@ -118,15 +124,6 @@ test('if blog is created without like property its defaulted to 0', async () => 
 });
 
 test('if title and url are missing the response is a Bad Request', async () => {
-  const logResponse = await api
-    .post('/api/login')
-    .send({
-      username: 'root',
-      password: 'sekret',
-    })
-    .expect(200)
-    .expect('Content-Type', /application\/json/);
-
   const newBlog = {
     author: 'Bad Request',
     likes: 33,
@@ -135,22 +132,14 @@ test('if title and url are missing the response is a Bad Request', async () => {
   await api
     .post('/api/blogs')
     .send(newBlog)
-    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .set('Authorization', `bearer ${token}`)
     .expect(400);
 });
 
 test('a blog is deleted successfully', async () => {
-  const logResponse = await api
-    .post('/api/login')
-    .send({
-      username: 'root',
-      password: 'sekret',
-    })
-    .expect(200)
-    .expect('Content-Type', /application\/json/);
   await api
     .post('/api/blogs')
-    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .set('Authorization', `bearer ${token}`)
     .send({
       title: 'test new blog',
       author: 'test new author',
@@ -160,9 +149,10 @@ test('a blog is deleted successfully', async () => {
     .expect(201)
     .expect('Content-Type', /application\/json/);
   const response = await api.get('/api/blogs');
+
   await api
-    .delete(`/api/blogs/${response.body[1].id}`)
-    .set('Authorization', `bearer ${logResponse.body.token}`)
+    .delete(`/api/blogs/${response.body[0].id}`)
+    .set('Authorization', `bearer ${token}`)
     .expect(204);
   const responseUpdated = await api.get('/api/blogs');
   expect(responseUpdated.body.length).toBe(response.body.length - 1);
